@@ -2,46 +2,61 @@ FROM php:8.3-fpm
 
 WORKDIR /app
 
-# Install dependencies
+# =========================================
+# SYSTEM DEPENDENCIES
+# =========================================
 RUN apt-get update && apt-get install -y \
-    git curl unzip zip libzip-dev \
-    libpng-dev libonig-dev libxml2-dev
+    git curl unzip zip \
+    libzip-dev libpng-dev libonig-dev libxml2-dev \
+    && docker-php-ext-install pdo_mysql mbstring zip exif pcntl
 
-# Install PHP extensions
-RUN docker-php-ext-install pdo_mysql mbstring zip exif pcntl
-
-# Install Node.js (VERSI BENAR)
+# =========================================
+# INSTALL NODE.JS (WAJIB NODE 22 UNTUK VITE 8)
+# =========================================
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs
 
-# Copy project
+# =========================================
+# INSTALL COMPOSER
+# =========================================
+RUN curl -sS https://getcomposer.org/installer | php -- \
+    --install-dir=/usr/local/bin --filename=composer
+
+# =========================================
+# COPY PROJECT
+# =========================================
 COPY . .
 
-# Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# =========================================
+# INSTALL BACKEND DEPENDENCIES
+# =========================================
 RUN composer install --no-dev --optimize-autoloader
 
-# Frontend build
+# =========================================
+# INSTALL FRONTEND + BUILD VITE
+# =========================================
 RUN npm install
 RUN npm run build
 
-# CLEAR CACHE (INI YANG SERING KELUPA)
-RUN php artisan optimize:clear
-RUN php artisan view:clear
-RUN php artisan config:clear
-
-# CACHE ULANG UNTUK PRODUCTION
+# =========================================
+# LARAVEL CACHE OPTIMIZATION
+# =========================================
+# Laravel cache (SAFE VERSION)
 RUN php artisan config:cache
+RUN php artisan route:cache
 RUN php artisan view:cache
-RUN php artisan route:cache
 
-# Laravel cache
-RUN php artisan config:cache
-RUN php artisan route:cache
-
-# Permission fix
+# =========================================
+# STORAGE PERMISSION FIX
+# =========================================
 RUN chmod -R 775 storage bootstrap/cache
 
+# =========================================
+# PORT RAILWAY
+# =========================================
 EXPOSE 8080
 
+# =========================================
+# START SERVER
+# =========================================
 CMD php artisan serve --host=0.0.0.0 --port=8080
